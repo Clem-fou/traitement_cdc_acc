@@ -231,8 +231,8 @@ def normaliser(
             # .map(fonction) applique la fonction element par element et
             # renvoie une Series. Equivalent d'une comprehension de liste,
             # mais qui preserve l'index.
-            "pas": df[c["pas"]].map(_parse_pas).to_numpy(),
-        },
+            "pas": df[c["pas"]].map(_parse_pas).to_numpy(), # renvoie un Timedelta, qui est le type pandas pour les durées. 
+            },
         # pd.DatetimeIndex : un index specialise pour les dates. Il debloque
         # .resample(), le decoupage par chaine (df.loc["2025-01"]), les
         # operations de fuseau. C'est lui qui rend pandas interessant ici.
@@ -242,7 +242,7 @@ def normaliser(
         if COLONNES[cle] in df.columns:
             # .values est l'ancien equivalent de .to_numpy(). Meme raison :
             # eviter l'alignement.
-            out[cle] = df[COLONNES[cle]].values
+            out[cle] = df[COLONNES[cle]].values # renvoie un tableau numpy
 
     # --- Dedoublonnage ---
     # .has_duplicates : test rapide sur l'index, evite le travail inutile.
@@ -320,7 +320,9 @@ def normaliser(
 
 
 def _parse_pas(v) -> pd.Timedelta:
-    """Parse un pas ISO 8601 (PT30M) ou une valeur en minutes."""
+    """Parse un pas ISO 8601 (PT30M) ou une valeur en minutes.
+    lire une valeur, reconnaître son format et la convertir dans un type utilisable par Python
+    """ 
     if isinstance(v, pd.Timedelta):
         return v
     # pd.isna() gere tous les "vides" pandas d'un coup : np.nan, None, NaT
@@ -334,7 +336,7 @@ def _parse_pas(v) -> pd.Timedelta:
         # pd.Timedelta parse nativement l'ISO 8601 des durees : "PT30M",
         # "PT1H15M", "P1DT2H". Aucune dependance externe necessaire.
         return pd.Timedelta(s)
-    return pd.Timedelta(minutes=float(s.replace(",", ".")))
+    return pd.Timedelta(minutes=float(s.replace(",", "."))) # renvoie un Timedelta, qui est le type pandas pour les durées. On peut ensuite faire des calculs avec ces objets, comme additionner ou soustraire des dates.
 
 
 def controler_pas_declare(df: pd.DataFrame) -> pd.DataFrame:

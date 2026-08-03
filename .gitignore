@@ -1,0 +1,28 @@
+# Environnement virtuel
+.venv/
+
+# Python et tests
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets et configuration locale
+.env
+*.local.toml
+*.local.json
+
+# Construction et exécutable
+build/
+dist/
+*.spec
+
+# Données et résultats locaux
+data/raw/
+output/
+*.log
+
+# Système
+.DS_Store
+Thumbs.db
