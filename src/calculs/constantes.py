@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+import pandas as pd
 # Nom de fuseau IANA. pandas ne connait pas "heure de Paris" : il lui faut
 # la cle de la base tzdata, qui embarque l'historique complet des regles de
 # changement d'heure. C'est cette base qui sait que le 27/10/2024 dure 25 h.
@@ -32,3 +34,27 @@ COLONNES = {
 }
 
 PREFERENCE_ETAPE = {"CORRIGE": 3, "COMPLETE": 2, "BRUT": 1}
+
+@dataclass
+class ReglesComblement:
+    """Seuils de la hierarchie de comblement.
+
+    Le decorateur @dataclass genere automatiquement __init__ et __repr__.
+    On peut donc ecrire ReglesComblement(duree_max_interpolation="6h") sans
+    ecrire le constructeur, et modifier un seul seuil sans toucher au code.
+    """
+
+    duree_max_interpolation: pd.Timedelta = pd.Timedelta("3h")
+    duree_max_jour_type: pd.Timedelta = pd.Timedelta("3D")
+    n_jours_reference: int = 4
+    decalage_annuel: pd.Timedelta = pd.Timedelta("364D")  # 52 semaines
+    recalage_n1: bool = True
+    fenetre_recalage: pd.Timedelta = pd.Timedelta("21D")
+    taux_reel_minimum: float = 0.80
+    # field(default_factory=list) est OBLIGATOIRE pour une valeur par defaut
+    # mutable. Ecrire `journal: list = []` partagerait la MEME liste entre
+    # toutes les instances : le journal du deuxieme PDL contiendrait celui du
+    # premier. default_factory appelle list() a chaque instanciation.
+    # C'est le piege classique des arguments par defaut mutables en Python,
+    # que dataclass detecte et refuse.
+    journal: list = field(default_factory=list)

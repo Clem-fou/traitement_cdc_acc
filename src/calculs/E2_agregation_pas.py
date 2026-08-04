@@ -1,3 +1,4 @@
+from __future__ import annotations
 import numpy as np
 import pandas as pd
 import warnings
@@ -11,7 +12,7 @@ from calculs.constantes import MESURE, MESURE_PARTIELLE
 # ---------------------------------------------------------------------------
 
 """prend en résultat le dataframe de la fonction lecture
-Celle ci a été normalisée. 
+Celle ci a été normalisée. elle contient une colonne "pas" qui contient le pas de temps de chaque ligne, et une colonne "valeur" qui contient la valeur mesurée.
 A noter que les valeur qui ne semblaient pas vraisemblables ont été remplacées par des NaN, et que les lignes avec des NaN dans la colonne valeur ont été supprimées.
 Donc il peut manquer des lignes dans le dataframe de sortie par rapport au dataframe d'entrée, celles qui ne sont pas vraisemblables.
 
@@ -21,10 +22,12 @@ agreger() va créer un nouveau dataframe, avec un pas régulier, et des métadon
 """
 
 def pgcd_pas(pas: pd.Series, cible: pd.Timedelta) -> pd.Timedelta:
-    """PGCD des pas presents, borne par le pas cible."""
+    """PGCD des pas presents, borne par le pas cible.
+    plus grand pas de temps qui divise exactement tous les pas présents ainsi que le pas cible.
+    """
     # .unique() renvoie un tableau numpy des valeurs distinctes, dans l'ordre
     # d'apparition (contrairement a set(), qui perd l'ordre).
-    valides = pas.dropna().unique()
+    valides = pas.dropna().unique() #tous les pas présents, sans doublons ni NaN. On ne peut pas calculer le pgcd d'un NaN.
     # On repasse en secondes entieres : np.gcd travaille sur des entiers.
     secondes = [int(pd.Timedelta(p).total_seconds()) for p in valides]
     secondes.append(int(cible.total_seconds()))
@@ -40,22 +43,24 @@ def agreger(
     cible: str | pd.Timedelta = "1h",
     seuil_couverture: float = 0.75,
     fenetre: tuple | None = None,
-    chemin: str | None = None,
+    
 ) -> pd.DataFrame:
     """Agrege une courbe a pas variable vers un pas regulier."""
     # pd.Timedelta accepte une chaine ("1h", "30min", "PT30M") ou un
     # Timedelta. Cette ligne rend la fonction tolerante aux deux.
     cible = pd.Timedelta(cible)
-    df = df.dropna(subset=["pas"])
+    df = df.dropna(subset=["pas"]) #supprime les lignes dans lesquelles la colonne "pas" contient une valeur manquante
     if df.empty:
-        raise ValueError(f"Aucune ligne exploitable (colonne 'pas' vide).{chemin.name} lignes dans le DataFrame.")
+        raise ValueError(f"Aucune ligne exploitable (colonne 'pas' vide).{df.attrs.get('prm','PRM Inconnu')} lignes dans le DataFrame.")
 
     pas_fin = pgcd_pas(df["pas"], cible)
 
-    # --- Bornes de la grille ---
+    # --- Bornes de la grille --- limites de début et de fin de la grille. Si elles sont fournies, on les utilise. Sinon, on les déduit des données.
+    # permet d'étudier et de créer le pas de temps sur une période spécifique, plutôt que sur toute la période des données. Cela peut être utile pour se concentrer sur une période d'intérêt ou pour exclure des périodes de données manquantes ou erronées.
     if fenetre is not None:
         # Expression generatrice depaquetee en deux variables. Fonctionne
         # parce qu'elle produit exactement deux elements.
+        #si l'on veut une date de début et de fin de la grille, on peut les passer en argument. Sinon, elles sont déduites des données.
         t0, t1 = (pd.Timestamp(x).tz_convert("UTC") for x in fenetre)
     else:
         # .attrs.get(cle, defaut) : la fenetre demandee si connue, sinon
@@ -66,8 +71,8 @@ def agreger(
     # .ceil / .floor arrondissent un Timestamp a un multiple de duree, comme
     # math.ceil mais sur des dates. Garantit que la grille tombe pile sur des
     # frontieres d'heure.
-    t0 = pd.Timestamp(t0).ceil(cible)
-    t1 = pd.Timestamp(t1).floor(cible)
+    t0 = pd.Timestamp(t0).ceil(cible) #ceil, qui signifie « plafond », arrondit vers la prochaine heure 8 : 17 => 9h
+    t1 = pd.Timestamp(t1).floor(cible) #floor, qui signifie « plancher », arrondit vers l'heure précédente 8 : 17 => 8h
 
     # =====================================================================
     # EXPLOSION : chaque ligne devient n sous-intervalles de duree pas_fin
@@ -86,20 +91,24 @@ def agreger(
     # `object` (des Timestamp Python), sur lequel l'arithmetique numpy
     # echoue. tz_localize(None) retire l'etiquette de fuseau sans decaler
     # les valeurs (elles sont deja en UTC) et rend un vrai datetime64.
-    fins = df.index.tz_localize(None).to_numpy()
-    durees = df["pas"].to_numpy()
+    fins = df.index.tz_localize(None).to_numpy() # car NumPy manipule parfois difficilement directement ces dates dans les calculs vectorisés.
+    durees = df["pas"].to_numpy() # convertit la colonne "pas" en tableau numpy de type timedelta64[ns], pour pouvoir faire des calculs vectorisés.
 
+
+   
     # np.repeat(tableau, n) duplique chaque element autant de fois que dit n.
     #   np.repeat([10, 20], [3, 2]) -> [10, 10, 10, 20, 20]
     # A ne pas confondre avec np.tile, qui repete le motif complet.
     #
-    # offsets doit valoir 0,1,2 puis 0,1 dans l'exemple ci-dessus. Astuce
+    # ______offsets doit valoir 0,1,2 puis 0,1 dans l'exemple ci-dessus. Astuce________
     # classique pour l'obtenir sans boucle :
     #   np.arange(5)               -> [0, 1, 2, 3, 4]      (compteur global)
-    #   np.cumsum(n) - n           -> [0, 3]               (debut de chaque bloc)
+    # n.sum() = nombre total de sous-intervalles. On va créer un tableau de cette taille,.
+    # np.cumsum(n) -> [3, 5]               (fin de chaque bloc, ici le 3e et le 5e sous-pas 3 valeur 10, 2 valeur 20)
+    #   np.cumsum(n) - n   =  [3, 5] - [3, 2]      -> [0, 3]               (debut de chaque bloc) 
     #   np.repeat(ces debuts, n)   -> [0, 0, 0, 3, 3]
     #   difference                 -> [0, 1, 2, 0, 1]      (compteur local)
-    offsets = np.arange(n.sum()) - np.repeat(np.cumsum(n) - n, n)
+    offsets = np.arange(n.sum()) - np.repeat(np.cumsum(n) - n, n) # Elle permet de créer un compteur qui recommence à zéro pour chaque mesure.
 
     # Arithmetique vectorisee sur des datetime64/timedelta64 : numpy sait le
     # faire nativement. .to_timedelta64() convertit le Timedelta pandas en
@@ -114,15 +123,15 @@ def agreger(
     # On reconstruit une Series pandas : tableau de valeurs + index de dates.
     # tz_localize("UTC") reattache le fuseau retire plus haut.
     fine = pd.Series(
-        valeurs, index=pd.DatetimeIndex(debuts_fins).tz_localize("UTC")
+        valeurs, index=pd.DatetimeIndex(debuts_fins).tz_localize("UTC") # associe les valeurs aux dates correspondantes, en recréant un index de type DatetimeIndex avec le fuseau UTC
     )
-    fine = fine[~fine.index.duplicated(keep="last")].sort_index()
+    fine = fine[~fine.index.duplicated(keep="last")].sort_index() #supprimer les dates en doubles, remet dans l'ordre croissant. keep="last" : on garde la dernière valeur si doublon, car c'est la plus récente.
 
     # pd.date_range genere un index de dates regulier.
     #   freq=          : le pas (Timedelta ou chaine "5min")
     #   inclusive="left": borne finale exclue, pour ne pas creer un pas de trop
     #   tz=            : le fuseau, indispensable pour comparer a `fine`
-    grille = pd.date_range(t0, t1, freq=pas_fin, inclusive="left", tz="UTC")
+    grille = pd.date_range(t0, t1, freq=pas_fin, inclusive="left", tz="UTC") #sans inclure la date de fin, pour ne pas créer un pas de trop. Le fuseau est indispensable pour comparer à `fine`, qui est en UTC.
 
     # .reindex(nouvel_index) : reordonne la Series sur l'index fourni.
     # Les dates absentes de `fine` recoivent NaN, les dates en trop sont
@@ -148,7 +157,10 @@ def agreger(
     # .where(condition) garde la valeur quand la condition est vraie et met
     # NaN sinon. Attention au sens : c'est l'inverse de .mask(). Ici, sous le
     # seuil, l'heure redevient une lacune que combler() traitera.
-    puissance = bloc.mean().where(couverture >= seuil_couverture)
+    puissance = bloc.mean().where(couverture >= seuil_couverture) # si < seuil, met NaN. Si >= seuil, garde la valeur moyenne. Cela permet de ne pas prendre en compte les heures avec trop peu de données pour calculer une moyenne fiable.
+
+    #pour laisser les valeurs à 0 if couverture et bloc / nmax pour conserver les heures à 0 et faire une moyenne en les prenant en compte.
+
 
     # dtype="object" : la colonne contiendra des chaines. Sans cette
     # precision, pandas creerait une colonne de type float et refuserait

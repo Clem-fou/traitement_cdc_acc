@@ -1,5 +1,5 @@
 
-from future import annotations
+from __future__ import annotations
 import numpy as np
 import pandas as pd
 import warnings
@@ -129,6 +129,7 @@ def normaliser(
 ) -> pd.DataFrame:
     """Normalise un DataFrame deja charge."""
     # .copy() : sans lui, les modifications remonteraient dans le DataFrame
+    # le df est composé
     # de l'appelant. pandas passe les objets par reference comme tout Python.
     df = df.copy()
     c = COLONNES
@@ -154,7 +155,8 @@ def normaliser(
             )
 
     # enlève les puissances qui ne sont pas en W,  que la puissance apparente, pas de puissance réactive
-    if c["grandeur_physique"] and c["prm"] in df.columns:
+    if c["grandeur_physique"] in df.columns:
+
         df = df[
             df[c["grandeur_physique"]]
             .astype("string")
@@ -162,8 +164,10 @@ def normaliser(
             .str.upper()
             .eq("PA")
         ]
+
+    if len(df) == 0:
         raise ValueError(
-        f"Aucune ligne de puissance active (PA) n'a été trouvée.{df[c['prm']].iloc[0]}"
+        f"Aucune ligne de puissance active (PA) n'a été trouvée PDL :{df[c['prm']].iloc[0]}"
     ) 
 
     
@@ -331,7 +335,7 @@ def normaliser(
 
 def _parse_pas(v) -> pd.Timedelta:
     """Parse un pas ISO 8601 (PT30M) ou une valeur en minutes.
-    lire une valeur, reconnaître son format et la convertir dans un type utilisable par Python
+    parse = lire une valeur, reconnaître son format et la convertir dans un type utilisable par Python
     """ 
     if isinstance(v, pd.Timedelta):
         return v
