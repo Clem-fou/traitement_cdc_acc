@@ -133,21 +133,8 @@ def normaliser(
     df = df.copy()
     c = COLONNES
 
-    # enlève les puissances qui ne sont pas en W,  que la puissance apparente, pas de puissance réactive
     
-    if c["grandeur_physique"] in df.columns:
-        df = df[
-            df[c["grandeur_physique"]]
-            .astype("string")
-            .str.strip()
-            .str.upper()
-            .eq("PA")
-        ]
 
-    
-    # pour les tarifs jaunes, null est rentré et pas 0 : permet d'uniformiser les données pour le calcul de l'énergie
-    if c["vraisemblance"] in df.columns:
-       df[c["vraisemblance"]] = df[c["vraisemblance"]].fillna(0)
 
     # --- PRM : garde-fou contre la corruption par Excel ---
     prm = None
@@ -166,10 +153,32 @@ def normaliser(
                 stacklevel=2,
             )
 
+    # enlève les puissances qui ne sont pas en W,  que la puissance apparente, pas de puissance réactive
+    if c["grandeur_physique"] and c["prm"] in df.columns:
+        df = df[
+            df[c["grandeur_physique"]]
+            .astype("string")
+            .str.strip()
+            .str.upper()
+            .eq("PA")
+        ]
+        raise ValueError(
+        f"Aucune ligne de puissance active (PA) n'a été trouvée.{df[c['prm']].iloc[0]}"
+    ) 
+
+    
+    # pour les tarifs jaunes, null est rentré et pas 0 : permet d'uniformiser les données pour le calcul de l'énergie
+    if c["vraisemblance"] in df.columns:
+       df[c["vraisemblance"]] = df[c["vraisemblance"]].fillna(0)    
+
     # --- Unite ---
     unite = str(df[c["unite"]].iloc[0]).strip() if c["unite"] in df.columns else "W"
     # dict.get(cle, defaut) : pas de KeyError si l'unite est inconnue.
-    facteur = {"W": 1.0, "kW": 1000.0, "VA": 1.0, "kVA": 1000.0}.get(unite, 1.0)
+    facteurs_pris_en_compte = {"W": 1.0, "kW": 1000.0, "VA": 1.0, "kVA": 1000.0}
+    facteur = facteurs_pris_en_compte.get(unite, 1.0)
+    if unite not in facteurs_pris_en_compte:
+        warnings.warn(f"Unité inconnue : {unite!r}", stacklevel=2) #!r pour voir les guillemets et les espaces parasites
+
 
     # --- Horodate -> UTC ---
     h = _to_datetime(df[c["horodate"]])
@@ -244,7 +253,7 @@ def normaliser(
             # eviter l'alignement.
             out[cle] = df[COLONNES[cle]].values # renvoie un tableau numpy
 
-    # --- Dedoublonnage ---
+    # --- Dedoublonnage --- permet de garder la ligne de plus forte priorite (CORRIGE > COMPLETE > BRUT)
     # .has_duplicates : test rapide sur l'index, evite le travail inutile.
     if out.index.has_duplicates:
         # .map(dict) : traduit chaque valeur via un dictionnaire. Les valeurs
@@ -256,14 +265,14 @@ def normaliser(
         )
         # .assign(col=...) ajoute une colonne et renvoie une COPIE. Style
         # chaine, contrairement a df["col"] = ... qui modifie sur place.
-        out = out.assign(_r=rang.values).sort_values("_r")
+        out = out.assign(_r=rang.values).sort_values("_r") #trie par ordre croissant dans la colonne _r
         n_avant = len(out)
         # .duplicated(keep="last") renvoie un masque booleen : True sur les
         # doublons SAUF le dernier. Comme on vient de trier par rang
         # croissant, le dernier est celui de plus forte priorite.
         # Le ~ inverse le masque (equivalent de `not` mais vectorise ;
         # `not` sur une Series leve une exception, il faut ~).
-        out = out[~out.index.duplicated(keep="last")].drop(columns="_r")
+        out = out[~out.index.duplicated(keep="last")].drop(columns="_r") #on garde la dernière ligne (classé dans l'ordre croissant)
         warnings.warn(
             f"{n_avant - len(out)} horodates en doublon supprimees "
             "(priorite CORRIGE > COMPLETE > BRUT).",
@@ -277,13 +286,13 @@ def normaliser(
     if "vraisemblance" in out.columns:
         # .isin(collection) : masque booleen "cette valeur est-elle dans la
         # collection ?". Vectorise, et lisible meme avec plusieurs valeurs.
-        suspect = ~out["vraisemblance"].isin(vraisemblance_acceptee)
+        suspect = ~out["vraisemblance"].isin(vraisemblance_acceptee) # masque booleen pour identifier les valeurs non acceptees
         # .any() sur un masque : au moins un True. .all() : tous True.
-        if suspect.any():
+        if suspect.any(): #renvoie true si au moins une valeur est suspecte
             # .loc[masque, colonne] = valeur : affectation par masque.
             # A privilegier sur out[masque]["valeur"] = ..., qui modifierait
             # une copie temporaire et n'aurait aucun effet (SettingWithCopy).
-            out.loc[suspect, "valeur"] = np.nan
+            out.loc[suspect, "valeur"] = np.nan # remplace les valeurs suspectes par NaN (PAS PRISE EN COMPTE DANS LES CALCULS)
             warnings.warn(
                 f"{int(suspect.sum())} valeur(s) ecartee(s) sur indice de "
                 # .sum() sur un masque booleen compte les True (False=0, True=1).
@@ -291,13 +300,14 @@ def normaliser(
                 "-> traitees comme lacunes.",
                 stacklevel=2,
             )
-    # subset= : ne supprime la ligne que si CETTE colonne est NaN.
+
+    # subset= : ne supprime la ligne que si CETTE colonne est NaN. SUPPRESSION DE LIGNE SI LA VALEUR EST MANQUANTE, PAS DE SUPPRESSION SI LE PAS EST MANQUANT (PAS DE SUPPRESSION DE LIGNE SI LE PAS EST MANQUANT)
     out = out.dropna(subset=["valeur"])
 
-    # --- Metadonnees ---
-    # .attrs est un dictionnaire libre attache au DataFrame. Pratique pour
+    # --- Metadonnees --- 
     # transporter le PRM et le fuseau sans polluer les colonnes.
     # Attention : .attrs n'est pas garanti de survivre a toutes les
+    #permet d’associer des métadonnées à tes données sans créer de nouvelles colonnes.
     # operations pandas — d'ou les res.attrs.update(...) explicites plus loin.
     out.attrs["prm"] = prm
     out.attrs["unite_source"] = unite
@@ -339,7 +349,7 @@ def _parse_pas(v) -> pd.Timedelta:
     return pd.Timedelta(minutes=float(s.replace(",", "."))) # renvoie un Timedelta, qui est le type pandas pour les durées. On peut ensuite faire des calculs avec ces objets, comme additionner ou soustraire des dates.
 
 
-def controler_pas_declare(df: pd.DataFrame) -> pd.DataFrame:
+def controler_pas_declare(df: pd.DataFrame) -> pd.DataFrame: #reçoit déjà un DataFrame normalisé, avec l'index horodate et la colonne pas
     """Compare le pas declare a l'ecart reel avec l'horodate precedente."""
     # .to_series() transforme l'index en colonne (index ET valeurs identiques),
     # necessaire car .diff() n'existe pas sur un Index.
