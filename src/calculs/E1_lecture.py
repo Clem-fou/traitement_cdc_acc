@@ -169,38 +169,7 @@ def normaliser(
         raise ValueError(
         f"Aucune ligne de puissance active (PA) n'a été trouvée PDL :{df[c['prm']].iloc[0]}"
     ) 
-    
-    #Si pas de colonne pas de temps on vient le recalculer à partir de la colonne horodate, sinon on garde la colonne pas de temps existante
-
-    if c["horodate"] not in df.columns: #vérifie que horodate existe, indispensable pour la suite d'ou le raise ValueError si elle n'existe pas
-        raise ValueError(
-            f"Colonne horodate manquante dans le fichier PDL : {df[c['prm']].iloc[0]}"
-        )
-    
-    pas_calculé = df[c["horodate"]].diff().dropna()
-
-    colonne_manquante = False
-    if c["pas"] not in df.columns : #vérifié l'existence de la colonne pas de temps, si elle n'existe pas on la crée et on met un warning pour prévenir l'utilisateur que le pas de temps va être recalculé
-        df[c["pas"]] = pd.NA
-        colonne_manquante = True
-        warnings.warn(
-            f"Colonne pas de temps manquante  : {df[c['prm']].iloc[0]}. Le pas de temps sera recalculé, avec les pas de temps {pas_calculé.unique()}",
-            stacklevel=2,
-        )
-
-    heures_a_completer = df.loc[df[c["pas"]].isna(), c["horodate"]] #une série contenant les horodates pour lesquelles le pas de temps est manquant, pour informer l'utilisateur des données qui vont être complétées
-
-    #si la colonne existe avec des valeurs manquantes on informe les données qui vont être complétée, sans dire tous dans le cas ou la colonne n'existe pas
-    if not colonne_manquante and not heures_a_completer.empty:
-
-        warnings.warn(
-            f"Colonne pas de temps avec des valeurs manquantes  : {list(heures_a_completer)}.",
-            stacklevel=2,
-        )
-
-    
-    df[c["pas"]] = df[c["pas"]].fillna(pas_calculé) #remplace les valeurs manquantes par le pas de temps calculé
-
+ 
     
     # pour les tarifs jaunes, null est rentré et pas 0 : permet d'uniformiser les données pour le calcul de l'énergie
     if c["vraisemblance"] in df.columns:
@@ -215,6 +184,10 @@ def normaliser(
         warnings.warn(f"Unité inconnue : {unite!r}", stacklevel=2) #!r pour voir les guillemets et les espaces parasites
 
 
+    if c["horodate"] not in df.columns: #vérifie que horodate existe, indispensable pour la suite d'ou le raise ValueError si elle n'existe pas
+        raise ValueError(
+            f"Colonne horodate manquante dans le fichier PDL : {df[c['prm']].iloc[0]}"
+        )
     # --- Horodate -> UTC ---
     h = _to_datetime(df[c["horodate"]])
 
@@ -264,6 +237,10 @@ def normaliser(
     # Regle a retenir : dans un constructeur pd.DataFrame({...}, index=...),
     # toute Series venant d'ailleurs doit passer par .to_numpy() ou .values.
     # ======================================================================
+
+       
+   
+
     out = pd.DataFrame(
         {
             # pd.to_numeric convertit texte -> nombre.
@@ -281,7 +258,13 @@ def normaliser(
         # .resample(), le decoupage par chaine (df.loc["2025-01"]), les
         # operations de fuseau. C'est lui qui rend pandas interessant ici.
         index=pd.DatetimeIndex(h.to_numpy(), name="horodate", tz="UTC"),
+
     )
+
+    #correction du pas de temps si la colonne pas de temps est manquante, on la calcule à partir de la colonne horodate
+    out = correction_pas(out)
+
+
     for cle in ("nature", "vraisemblance", "etape"):
         if COLONNES[cle] in df.columns:
             # .values est l'ancien equivalent de .to_numpy(). Meme raison :
@@ -382,6 +365,40 @@ def _parse_pas(v) -> pd.Timedelta:
         # "PT1H15M", "P1DT2H". Aucune dependance externe necessaire.
         return pd.Timedelta(s)
     return pd.Timedelta(minutes=float(s.replace(",", "."))) # renvoie un Timedelta, qui est le type pandas pour les durées. On peut ensuite faire des calculs avec ces objets, comme additionner ou soustraire des dates.
+
+
+def correction_pas(df: pd.DataFrame) -> pd.DataFrame:
+                #Si pas de colonne pas de temps on vient le recalculer à partir de la colonne horodate, sinon on garde la colonne pas de temps existante
+    df = df.copy()
+
+    pas_calculé = df.index.to_series().diff().dropna() # Timedelta, calculé nativement
+    
+    colonne_manquante = False
+    if "pas" not in df.columns : #vérifié l'existence de la colonne pas de temps, si elle n'existe pas on la crée et on met un warning pour prévenir l'utilisateur que le pas de temps va être recalculé
+            df["pas"] = pd.Series(pd.NaT, index=df.index, dtype="timedelta64[ns]") # dtype explicite timedelta64[ns], pour rester cohérent avec _parse_pas. On ne peut pas faire df["pas"] = None : pandas devine object et perd le type timedelta64.
+            colonne_manquante = True
+            warnings.warn(
+                f"Colonne pas de temps manquante  : {df['prm'].iloc[0]}. Le pas de temps sera recalculé, avec les pas de temps {pas_calculé.unique()}",
+                stacklevel=2,
+            )
+    
+    heures_a_completer = df.loc[df["pas"].isna()] #une série contenant les horodates pour lesquelles le pas de temps est manquant, pour informer l'utilisateur des données qui vont être complétées
+    
+        #si la colonne existe avec des valeurs manquantes on informe les données qui vont être complétée, sans dire tous dans le cas ou la colonne n'existe pas
+    if not colonne_manquante and not heures_a_completer.empty:
+    
+            warnings.warn(
+                f"Colonne pas de temps avec des valeurs manquantes  : {list(heures_a_completer)}.",
+                stacklevel=2,
+            )
+    
+        
+    df["pas"] = df["pas"].fillna(pas_calculé) #remplace les valeurs manquantes par le pas de temps calculé
+
+
+    return df
+
+
 
 
 def controler_pas_declare(df: pd.DataFrame) -> pd.DataFrame: #reçoit déjà un DataFrame normalisé, avec l'index horodate et la colonne pas
