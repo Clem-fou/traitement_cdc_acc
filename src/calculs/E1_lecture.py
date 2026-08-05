@@ -164,11 +164,42 @@ def normaliser(
             .str.upper()
             .eq("PA")
         ]
-
+    #impératif d'avoir la colonne grandeur physique pour savoir si c'est de la puissance active ou réactive, sinon on ne peut pas faire le calcul de l'énergie
     if len(df) == 0:
         raise ValueError(
         f"Aucune ligne de puissance active (PA) n'a été trouvée PDL :{df[c['prm']].iloc[0]}"
     ) 
+    
+    #Si pas de colonne pas de temps on vient le recalculer à partir de la colonne horodate, sinon on garde la colonne pas de temps existante
+
+    if c["horodate"] not in df.columns: #vérifie que horodate existe, indispensable pour la suite d'ou le raise ValueError si elle n'existe pas
+        raise ValueError(
+            f"Colonne horodate manquante dans le fichier PDL : {df[c['prm']].iloc[0]}"
+        )
+    
+    pas_calculé = df[c["horodate"]].diff().dropna()
+
+    colonne_manquante = False
+    if c["pas"] not in df.columns : #vérifié l'existence de la colonne pas de temps, si elle n'existe pas on la crée et on met un warning pour prévenir l'utilisateur que le pas de temps va être recalculé
+        df[c["pas"]] = pd.NA
+        colonne_manquante = True
+        warnings.warn(
+            f"Colonne pas de temps manquante  : {df[c['prm']].iloc[0]}. Le pas de temps sera recalculé, avec les pas de temps {pas_calculé.unique()}",
+            stacklevel=2,
+        )
+
+    heures_a_completer = df.loc[df[c["pas"]].isna(), c["horodate"]] #une série contenant les horodates pour lesquelles le pas de temps est manquant, pour informer l'utilisateur des données qui vont être complétées
+
+    #si la colonne existe avec des valeurs manquantes on informe les données qui vont être complétée, sans dire tous dans le cas ou la colonne n'existe pas
+    if not colonne_manquante and not heures_a_completer.empty:
+
+        warnings.warn(
+            f"Colonne pas de temps avec des valeurs manquantes  : {list(heures_a_completer)}.",
+            stacklevel=2,
+        )
+
+    
+    df[c["pas"]] = df[c["pas"]].fillna(pas_calculé) #remplace les valeurs manquantes par le pas de temps calculé
 
     
     # pour les tarifs jaunes, null est rentré et pas 0 : permet d'uniformiser les données pour le calcul de l'énergie

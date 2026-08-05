@@ -85,26 +85,27 @@ def agreger(
     # trois appels vectorises, environ 100 fois plus rapide.
 
     # Timedelta // Timedelta -> entier. Nombre de sous-pas par ligne.
-    n = (df["pas"] // pas_fin).astype("int64").to_numpy()
+    n = (df["pas"] // pas_fin).astype("int64").to_numpy() 
 
     # PIEGE : sur un index tz-aware, .to_numpy() renvoie un tableau de type
     # `object` (des Timestamp Python), sur lequel l'arithmetique numpy
     # echoue. tz_localize(None) retire l'etiquette de fuseau sans decaler
     # les valeurs (elles sont deja en UTC) et rend un vrai datetime64.
     fins = df.index.tz_localize(None).to_numpy() # car NumPy manipule parfois difficilement directement ces dates dans les calculs vectorisés.
-    durees = df["pas"].to_numpy() # convertit la colonne "pas" en tableau numpy de type timedelta64[ns], pour pouvoir faire des calculs vectorisés.
+    durees_du_pas = df["pas"].to_numpy() # convertit la colonne "pas" en tableau numpy de type timedelta64[ns], pour pouvoir faire des calculs vectorisés.
 
 
    
     # np.repeat(tableau, n) duplique chaque element autant de fois que dit n.
-    #   np.repeat([10, 20], [3, 2]) -> [10, 10, 10, 20, 20]
+    # 
+    #   np.repeat([15, 10], [3, 2]) -> [15,15,15, 10,10]
     # A ne pas confondre avec np.tile, qui repete le motif complet.
     #
     # ______offsets doit valoir 0,1,2 puis 0,1 dans l'exemple ci-dessus. Astuce________
     # classique pour l'obtenir sans boucle :
     #   np.arange(5)               -> [0, 1, 2, 3, 4]      (compteur global)
     # n.sum() = nombre total de sous-intervalles. On va créer un tableau de cette taille,.
-    # np.cumsum(n) -> [3, 5]               (fin de chaque bloc, ici le 3e et le 5e sous-pas 3 valeur 10, 2 valeur 20)
+    # np.cumsum(n) -> [3, 3+2 = 5]               (fin de chaque bloc, ici le 3e et le 5e sous-pas 3 valeur 10, 2 valeur 20) car on vient sommer les indices de n pour savoir où se termine chaque bloc de répétition. ex: pour n = [3, 2], np.cumsum(n) = [3, 3+2 = 5] car le premier bloc de répétition se termine à l'indice 3 et le deuxième bloc se termine à l'indice 5.
     #   np.cumsum(n) - n   =  [3, 5] - [3, 2]      -> [0, 3]               (debut de chaque bloc) 
     #   np.repeat(ces debuts, n)   -> [0, 0, 0, 3, 3]
     #   difference                 -> [0, 1, 2, 0, 1]      (compteur local)
@@ -113,12 +114,21 @@ def agreger(
     # Arithmetique vectorisee sur des datetime64/timedelta64 : numpy sait le
     # faire nativement. .to_timedelta64() convertit le Timedelta pandas en
     # son equivalent numpy, requis pour multiplier par un tableau d'entiers.
+    #on crée un tableau de dates correspondant aux débuts et fins de chaque sous-pas, en partant des fins d'intervalle et en soustrayant les durées et les offsets.
+
+    #np.repeat(fins, n)   = [10:15,10:15,10:15, 10:25,10:25]   # fin de la ligne d'origine, répétée
+    #- np.repeat(durees_du_pas,n)= -[15,15,15, 10,10] min             # -> début de la ligne d'origine
+    #               = [10:00,10:00,10:00, 10:15,10:15]
+    #+ offsets*pas_fin    = [+0,+5,+10, +0,+5] min
+   # =debuts_fins        = [10:00,10:05,10:10, 10:15,10:20] la df avec toutes les valeurs selon les pas de temps
+
+
     debuts_fins = (
         np.repeat(fins, n)          # fin de l'intervalle d'origine
-        - np.repeat(durees, n)      # -> debut de l'intervalle d'origine
-        + offsets * pas_fin.to_timedelta64()   # -> debut du sous-pas
+        - np.repeat(durees_du_pas, n)      # -> debut de l'intervalle d'origine
+        + offsets * pas_fin.to_timedelta64()   # -> debut du sous-pas 
     )
-    valeurs = np.repeat(df["valeur"].to_numpy(), n)
+    valeurs = np.repeat(df["valeur"].to_numpy(), n) #
 
     # On reconstruit une Series pandas : tableau de valeurs + index de dates.
     # tz_localize("UTC") reattache le fuseau retire plus haut.
