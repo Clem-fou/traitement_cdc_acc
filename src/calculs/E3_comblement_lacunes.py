@@ -83,7 +83,14 @@ def type_de_jour(dates: pd.DatetimeIndex) -> pd.Series:
 
 
 def combler(df: pd.DataFrame, regles: ReglesComblement | None = None) -> pd.DataFrame:
-    """Comble les lacunes selon une hierarchie dependante de leur duree."""
+    """Comble les lacunes selon une hierarchie dependante de leur duree.
+
+    A NOTER QUE : 
+    
+    L'étape 2 "agrégation des pas" comble dejà des lacunes si le seuil de couverture est couvert sur l'heure sinon met NaN
+    Le seuil de couverture est modifiable dans les paramètre (constantes)     
+    
+    """
     # `a or b` renvoie b si a est falsy (None ici). Idiome courant pour les
     # valeurs par defaut mutables qu'on ne veut pas mettre dans la signature.
 

@@ -164,12 +164,14 @@ def normaliser(
             .str.upper()
             .eq("PA")
         ]
+
+        """
     #impératif d'avoir la colonne grandeur physique pour savoir si c'est de la puissance active ou réactive, sinon on ne peut pas faire le calcul de l'énergie
     if len(df) == 0:
         raise ValueError(
         f"Aucune ligne de puissance active (PA) n'a été trouvée PDL :{df[c['prm']].iloc[0]}"
     ) 
- 
+    """
     
     # pour les tarifs jaunes, null est rentré et pas 0 : permet d'uniformiser les données pour le calcul de l'énergie
     if c["vraisemblance"] in df.columns:
