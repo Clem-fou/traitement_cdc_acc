@@ -177,7 +177,7 @@ def normaliser(
 
     # --- Unite ---
     unite = str(df[c["unite"]].iloc[0]).strip() if c["unite"] in df.columns else "W"
-    # dict.get(cle, defaut) : pas de KeyError si l'unite est inconnue.
+    # dict.get(cle, defaut) : pas de KeyError si l'unite est inconnue on considère que ce sont des W
     facteurs_pris_en_compte = {"W": 1.0, "kW": 1000.0, "VA": 1.0, "kVA": 1000.0}
     facteur = facteurs_pris_en_compte.get(unite, 1.0)
     if unite not in facteurs_pris_en_compte:
@@ -238,9 +238,7 @@ def normaliser(
     # toute Series venant d'ailleurs doit passer par .to_numpy() ou .values.
     # ======================================================================
 
-       
-   
-
+    
     out = pd.DataFrame(
         {
             # pd.to_numeric convertit texte -> nombre.

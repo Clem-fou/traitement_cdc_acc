@@ -14,6 +14,7 @@ INTERP_COURTE = "INTERP_COURTE"
 PROFIL_JOUR_TYPE = "PROFIL_JOUR_TYPE"
 ANNEE_N1 = "ANNEE_N-1"
 ZERO_FORCE = "ZERO_FORCE"
+MISE_A_ZERO_OBLIGATOIRE = "MISE_A_ZERO_CONSIGNE"
 
 ORIGINES_REELLES = (MESURE, MESURE_PARTIELLE)
 
@@ -45,12 +46,13 @@ class ReglesComblement:
     """
 
     duree_max_interpolation: pd.Timedelta = pd.Timedelta("3h")
-    duree_max_jour_type: pd.Timedelta = pd.Timedelta("3D")
+    duree_max_jour_type: pd.Timedelta = pd.Timedelta("10D")
     n_jours_reference: int = 4
     decalage_annuel: pd.Timedelta = pd.Timedelta("364D")  # 52 semaines
     recalage_n1: bool = True
     fenetre_recalage: pd.Timedelta = pd.Timedelta("21D")
     taux_reel_minimum: float = 0.80
+    mettre_valeur_manquante_a_0 : bool = False
     # field(default_factory=list) est OBLIGATOIRE pour une valeur par defaut
     # mutable. Ecrire `journal: list = []` partagerait la MEME liste entre
     # toutes les instances : le journal du deuxieme PDL contiendrait celui du
