@@ -35,17 +35,25 @@ def bilan_qualite(res: pd.DataFrame) -> dict:
     }
 
 
-def exporter(res: pd.DataFrame, chemin: str) -> None:
+def exporter(res: pd.DataFrame, chemin: str, date_debut = "01/01/2025", date_fin = "31/12/2025") -> None:
     """Export en heure locale, avec la colonne d'origine pour tracabilite."""
     sortie = res.copy()
     # On repasse en heure locale UNIQUEMENT ici : c'est ce que l'utilisateur
     # et les outils metier attendent. Tout le calcul s'est fait en UTC.
     sortie.index = sortie.index.tz_convert(TZ_LOCALE)
     sortie.index.name = "horodate_locale"
+
+    date_debut_extraction = pd.to_datetime(date_debut, format="%d/%m/%Y").tz_localize(TZ_LOCALE)
+    date_fin_extraction = pd.to_datetime(date_fin, format="%d/%m/%Y").tz_localize(TZ_LOCALE) #toute la journée est incluse dedans.
+
+    date_fin_exclusive = date_fin_extraction + pd.Timedelta(days=1) # rajoute 1 jour pour que la ligne d'après filtre bien
+
+    sortie_filtrée = sortie[(sortie.index >= date_debut_extraction) & (sortie.index < date_fin_exclusive)]
+
     # .to_csv ecrit l'index comme premiere colonne par defaut (index=False
     # pour l'omettre — surtout pas ici, l'index EST l'horodate).
     # sep=";" et decimal="," pour un fichier directement ouvrable dans un
     # Excel en configuration francaise.
     # float_format limite le nombre de decimales et donc la taille du fichier.
-    sortie.to_csv(chemin, sep=";", decimal=",", float_format="%.3f")
+    sortie_filtrée.to_csv(chemin, sep=";", decimal=",", float_format="%.3f")
 

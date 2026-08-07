@@ -1,0 +1,13 @@
+=== LOG EXPORT PDL ===
+Source : C:\Users\gwendoline.garnier\Downloads\ENEDIS_R63_P_CdC_M0AK02F5_00001_20260703085843\ENEDIS_R63_P_CdC_M0AK02F5_00001_20260703085843.csv
+Début   : 03/07/2026 09:05:25
+--------------------------------------
+Séparateur détecté : ;
+Colonne PDL/PRM    : Identifiant PRM
+--------------------------------------
+
+Lignes traitées : 4862559
+Fichiers créés  : 80
+Lignes sans PDL : 0
+Durée (sec)     : 163,0
+--------------------------------------

@@ -1,0 +1,14 @@
+# Manipulation des données / courbes de charge
+pandas>=2.0
+numpy>=1.24
+ 
+# Gestion des dates et fuseaux horaires (horodates avec offset)
+python-dateutil>=2.8
+pytz>=2024.1
+tzdata>=2024.1        # nécessaire sous Windows pour zoneinfo
+ 
+# Export éventuel vers Excel (à retirer si non utilisé)
+openpyxl>=3.1
+ 
+# Tests
+pytest>=8.0
