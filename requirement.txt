@@ -12,3 +12,6 @@ openpyxl>=3.1
  
 # Tests
 pytest>=8.0
+
+#interface
+tkinter >=  8.5.12

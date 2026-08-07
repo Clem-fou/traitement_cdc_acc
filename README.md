@@ -62,15 +62,16 @@ horodate_locale;puissance_W;couverture;origine
 #### Explication de l'origine
 
 
-7 sorties de la colone `origine` sont possible 
-MESURE = "MESURE" simplement la mesure relevée par Enedis 
-MESURE_PARTIELLE = "MESURE_PARTIELLE" Dans le cas ou il manquerait une période sur l'heure. En echo avec  `couverture` qui donne la couverure de l'heure
-INTERP_COURTE = "INTERP_COURTE" Si l'interruption de consommation est inférieur à 3h, on fait une moyenne de la valeur avant et après la période de 3 h pour la puissance
-PROFIL_JOUR_TYPE = "PROFIL_JOUR_TYPE" Dans le cas d'une interruption entre 3h et 10 jours, on fait la médiane de la puissance des 4 périodes des jours identique (OUVRE, SAMEDI, DIMANCHE) les plus proches
-ANNEE_N1 = "ANNEE_N-1" # si l'interruption est supérieur à 10 jours, on prend la valeur de l'année d'avant (ou d'après si pas avant)
-ZERO_FORCE = "ZERO_FORCE" Aucune solution d'évaluation de donnée ne fonctionne, on est obligé de mettre 0
-MISE_A_ZERO_OBLIGATOIRE = "MISE_A_ZERO_CONSIGNE" #nous avons choisi de mettre 0 parout ou nous n'avons pas les données, exception faite de MESURE_PARTIELLE
+7 sorties de la colone `origine` sont possibles
 
+1. MESURE = "MESURE" simplement la mesure relevée par Enedis.
+2. MESURE_PARTIELLE = "MESURE_PARTIELLE" Dans le cas ou il manquerait une période sur l'heure. En echo avec  `couverture` qui donne la couverure de l'heure
+3. INTERP_COURTE = "INTERP_COURTE" Si l'interruption de consommation est inférieur à 3h, on fait une moyenne de la valeur avant et après la période de 3 h pour la puissance
+4. PROFIL_JOUR_TYPE = "PROFIL_JOUR_TYPE" Dans le cas d'une interruption entre 3h et 10 jours, on fait la médiane de la puissance des 4 périodes des jours identique (OUVRE, SAMEDI, DIMANCHE) les plus proches
+5. ANNEE_N1 = "ANNEE_N-1" # si l'interruption est supérieur à 10 jours, on prend la valeur de l'année d'avant (ou d'après si pas avant)
+6. ZERO_FORCE = "ZERO_FORCE" Aucune solution d'évaluation de donnée ne fonctionne, on est obligé de mettre 0
+7. MISE_A_ZERO_OBLIGATOIRE = "MISE_A_ZERO_CONSIGNE" #nous avons choisi de mettre 0 parout ou nous n'avons pas les données, exception faite de MESURE_PARTIELLE
+````
 
 ## Installation
 
