@@ -19,8 +19,9 @@ dist/
 *.spec
 
 # Données et résultats locaux
-data/raw/
-output/
+data/
+sortie/
+sortie_total_v1/
 *.log
 
 # Système
